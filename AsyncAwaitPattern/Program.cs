@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Numerics;
 using System.Threading.Tasks;
 
 namespace AsyncAwaitPattern
@@ -21,6 +22,7 @@ namespace AsyncAwaitPattern
             foreach (var implType in implTypes)
             {
                 var instance = Activator.CreateInstance(implType) as IRunnable;
+                Console.WriteLine("Running : {0}", instance.GetType().Name);
                 instance.Run().Wait();
             }
 
@@ -34,7 +36,6 @@ namespace AsyncAwaitPattern
     {
         public async Task Run()
         {
-            Console.WriteLine("Running Demo1...");
             await Task.Delay(1);
         }
     }
@@ -45,8 +46,6 @@ namespace AsyncAwaitPattern
     {
         public async Task Run()
         {
-            Console.WriteLine("Running Demo2...");
-
             for (int i = 0; i < 10; i++)
             {
                 ///prints all 10!
@@ -93,8 +92,6 @@ namespace AsyncAwaitPattern
     {
         public async Task Run()
         {
-            Console.WriteLine("Running Demo3...");
-
             for (int i = 0; i < 10; i++)
             {
                 int toCaptureI = i;
@@ -108,4 +105,70 @@ namespace AsyncAwaitPattern
         }
     }
 
+    //Returning Data from a Task
+    //---------------------------------------------------
+/*  Up to now we have just examined the notion of passing data into a task, but tasks can also be used to return results.
+    Have you ever wondered what the chances are of winning a lottery that has 49,000 possible numbers of which you
+    have to pick the 600 that are selected on the given night? You probably already know your chances of winning are slim,
+    but Listing 3-11 contains partial implementation of the code necessary to calculate the odds.*/
+
+    public class Demo4 : IRunnable
+    {
+        public async Task Run()
+        {
+            BigInteger n = 49000;
+            BigInteger r = 600;
+            BigInteger part1 = MathUtils.Factorial(n);
+            BigInteger part2 = MathUtils.Factorial(n - r);
+            BigInteger part3 = MathUtils.Factorial(r);
+
+            BigInteger chances = part1 / (part2 * part3);
+
+            Console.WriteLine("chances are : {0}", chances);
+
+            await Task.Delay(1);
+        }
+    }
+
+    /*
+    Executing this code sequentially will only use one core; however, since the calculation of part1, part2, and part3
+    are all independent of one another, you could potentially speed things up if you calculated those different parts as
+    separate tasks. When all the results are in, do the simple divide-and-multiply operation—TPL is well suited for this
+    kind of problem. Listing 3-12 shows the refactored code that takes advantage of TPL to potentially calculate all the
+    parts at the same time.
+ */
+
+    public class Demo5 : IRunnable
+    {
+        public async Task Run()
+        {
+            BigInteger n = 49000;
+            BigInteger r = 600;
+
+            //run in parallel
+            Task<BigInteger> part1 = Task.Factory.StartNew<BigInteger>(() => MathUtils.Factorial(n));
+            Task<BigInteger> part2 = Task.Factory.StartNew<BigInteger>(() => MathUtils.Factorial(n - r));
+            Task<BigInteger> part3 = Task.Factory.StartNew<BigInteger>(() => MathUtils.Factorial(r));
+
+            BigInteger chances = part1.Result / (part2.Result * part3.Result);
+
+            Console.WriteLine("chances are : {0}", chances);
+
+            await Task.Delay(1);
+        }
+    }
+
+    public class MathUtils
+    {
+        public static BigInteger Factorial(BigInteger n)
+        {
+            BigInteger result = n;
+            for (int i = 1; i < n; i++)
+            {
+                result = result * i;
+            }
+
+            return result;
+        }
+    }
 }
