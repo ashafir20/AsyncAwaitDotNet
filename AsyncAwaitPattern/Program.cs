@@ -374,4 +374,81 @@ namespace AsyncAwaitPattern
     XML-based exceptions. Any other type of exception contained inside the AggregateException will be re-thrown as
     part of a new AggregateException.In essence the developer considers XML-based errors as not fatal, and is happy for
     the application to continue.*/
+
+    /*Progress
+    //---------
+    The last addition to your asynchronous API is to add support for progress.Progress is typically represented by a
+    percentage, but that isn’t always appropriate; during an install it might be nice to see what component is being
+    installed. .NET 4.5 introduces a standard way to represent progress, via an interface IProgress<T>.*/
+
+/*  public interface IProgress<in T>
+    {
+        void Report(T value);
+    }*/
+
+    public class Demo9 : IRunnable
+    {
+        public Task ImportXmlFilesAsync(string dataDirectory,
+            CancellationToken ct, IProgress<ImportProgress> progressObserver)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                FileInfo[] files = new DirectoryInfo(dataDirectory).GetFiles("*.xml");
+                int nFileProcessed = 0;
+                foreach (FileInfo file in files)
+                {
+                    XElement doc = XElement.Load(file.FullName);
+
+                    double progress = (double) nFileProcessed/(double) files.Length*100.0;
+                    progressObserver.Report(new ImportProgress((int) progress, file.FullName));
+
+                    InternalProcessXml(doc);
+                    nFileProcessed++;
+                    ct.ThrowIfCancellationRequested();
+                }
+            }, ct);
+        }
+
+        /*  To consume progress reports you need to supply an object that implements IProgress<T>. In a UI application
+           this could easily be implemented by the ViewModel, but this can sometimes get tedious, especially if you are simply
+           updating a value on a progress bar. To keep things simpler, TPL provides an implementation of IProgress<T> called
+           Progress<T>. This type is an adapter for the IProgress<T> interface allowing you to consume the progress either via a
+           simple delegate or a traditional event subscription.*/
+
+        public async Task Run()
+        {
+            var ct = new CancellationToken();
+            Task importTask = ImportXmlFilesAsync(@"C:\data", ct, new Progress<ImportProgress>(DisplayProgress));
+            await importTask;
+        }
+
+        private void DisplayProgress(ImportProgress progress)
+        {
+            Console.SetCursorPosition(0, 0);
+            Console.Write("Processing {0} {1}% Done", progress.CurrentFile, progress.OverallProgress);
+        }
+
+        private void InternalProcessXml(XElement doc)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public interface IImport
+    {
+        Task ImportXmlFilesAsync(string dataDirectory);
+        Task ImportXmlFilesAsync(string dataDirectory, CancellationToken ct);
+        Task ImportXmlFilesAsync(string dataDirectory, CancellationToken ct,
+            IProgress<ImportProgress> progressObserver);
+    }
+    public class ImportProgress
+    {
+        public int OverallProgress { get; private set; }
+        public string CurrentFile { get; private set; }
+        public ImportProgress(int overallProgress, string currentFile)
+        {
+            OverallProgress = overallProgress;
+            CurrentFile = currentFile;
+        }
+    }
 }
